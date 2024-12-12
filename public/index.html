@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Event Scheduling Calendar</title>
+  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.0/main.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.0/main.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f9f9f9;
+      color: #333;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      width: 80%;
+      margin: 50px auto;
+      padding: 20px;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+    #calendar {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .modal {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      padding: 20px;
+      background: white;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      z-index: 1000;
+    }
+    .modal.active {
+      display: block;
+    }
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 999;
+    }
+    .modal-overlay.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Event Scheduling Calendar</h2>
+    <div id="calendar"></div>
+  </div>
+
+  <!-- Modal for Adding Events -->
+  <div class="modal-overlay" id="modal-overlay"></div>
+  <div class="modal" id="event-modal">
+    <h3>Schedule New Event</h3>
+    <label for="event-title">Event Name:</label>
+    <input type="text" id="event-title" placeholder="Enter event name" /><br /><br />
+    <label for="event-url">Video Chat Link:</label>
+    <input type="text" id="event-url" placeholder="Enter video link" /><br /><br />
+    <label for="start-time">Start Time:</label>
+    <input type="time" id="start-time" /><br /><br />
+    <label for="end-time">End Time:</label>
+    <input type="time" id="end-time" /><br /><br />
+    <label for="phone-number">Phone Number:</label>
+    <input type="text" id="phone-number" placeholder="Enter phone number" /><br /><br />
+    <button id="save-event">Save Event</button>
+    <button id="cancel-event">Cancel</button>
+  </div>
+
+  <script>
+    let calendar, selectedDate, selectedEvent;
+
+    document.addEventListener('DOMContentLoaded', function() {
+      var calendarEl = document.getElementById('calendar');
+      
+      calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        headerToolbar: {
+          left: 'prev',
+          center: 'title',
+          right: 'next'
+        },
+        events: async function(fetchInfo, successCallback, failureCallback) {
+          try {
+            const response = await fetch('/api/events'); // Fetch events from the server
+            const events = await response.json();
+            successCallback(events);
+          } catch (error) {
+            failureCallback(error);
+          }
+        },
+        dateClick: function(info) {
+          selectedDate = info.dateStr; // Automatically set the selected date
+          openEventModal(selectedDate);
+        },
+        eventClick: function(info) {
+          selectedEvent = info.event;
+          // Redirect to the meeting link (the URL of the event)
+          window.location.href = selectedEvent.url; // Smooth redirection to the meet page
+        }
+      });
+
+      calendar.render();
+    });
+
+    function openEventModal(date) {
+      document.getElementById('event-title').value = '';
+      document.getElementById('event-url').value = '';
+      document.getElementById('start-time').value = '';
+      document.getElementById('end-time').value = '';
+      document.getElementById('phone-number').value = '';
+
+      document.getElementById('modal-overlay').classList.add('active');
+      document.getElementById('event-modal').classList.add('active');
+    }
+
+    document.getElementById('save-event').addEventListener('click', async function() {
+      const eventTitle = document.getElementById('event-title').value;
+      const eventUrl = document.getElementById('event-url').value;
+      const startTime = selectedDate + 'T' + document.getElementById('start-time').value; // Combine date and time
+      const endTime = selectedDate + 'T' + document.getElementById('end-time').value; // Combine date and time
+      const phoneNumber = document.getElementById('phone-number').value;
+
+      if (eventTitle && eventUrl && startTime && endTime && phoneNumber) {
+        const event = {
+          title: eventTitle,
+          start: startTime,
+          end: endTime,
+          url: eventUrl,
+          phoneNumber,
+        };
+
+        // Add the event to the calendar
+        calendar.addEvent(event);
+
+        // Save the event to the database
+        await fetch('/api/events', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(event),
+        });
+
+        closeEventModal();
+      } else {
+        alert('Please fill in all the fields.');
+      }
+    });
+
+    document.getElementById('cancel-event').addEventListener('click', closeEventModal);
+
+    function closeEventModal() {
+      document.getElementById('modal-overlay').classList.remove('active');
+      document.getElementById('event-modal').classList.remove('active');
+      selectedEvent = null;
+    }
+  </script>
+</body>
+</html>
